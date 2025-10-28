@@ -187,11 +187,6 @@ esbuild.build({
     <h1>Ledger Offline Signer</h1>
     <div class="subtitle" id="pathInfo">Derivation path</div>
 
-    <div class="warning">
-        WARNING: Disconnect internet before entering mnemonic.<br>
-        Recommended: Use Tails OS on USB stick.
-    </div>
-
     <div id="securityBlock" style="display: none; background: #000; color: #f00; padding: 20px; border: 1px solid #f00; margin: 20px 0;">
         <div id="securityMessage" style="margin: 10px 0; font-size: 14px;"></div>
     </div>
