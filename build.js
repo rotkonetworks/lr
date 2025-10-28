@@ -208,6 +208,18 @@ esbuild.build({
         ONLINE - DISCONNECT NOW
     </div>
 
+    <div id="downloadSection" style="display: none; border: 1px solid #fff; padding: 15px; margin: 20px 0; text-align: center;">
+        <div style="margin-bottom: 10px; font-size: 12px;">
+            To use this tool offline, download it first:
+        </div>
+        <button id="downloadBtn" onclick="downloadHTML()" style="padding: 15px 30px; font-size: 14px; cursor: pointer;">
+            ⬇ DOWNLOAD FOR OFFLINE USE
+        </button>
+        <div style="margin-top: 10px; font-size: 11px; color: #888;">
+            After download: disconnect internet, then open the file
+        </div>
+    </div>
+
     <div id="error" class="error"></div>
 
     <div id="mainContent" style="display: none;">
@@ -267,6 +279,35 @@ esbuild.build({
 
     <script>
 ${cryptoBundle}
+
+        // Download HTML function
+        function downloadHTML() {
+            const htmlContent = document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'index.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Show confirmation
+            const btn = document.getElementById('downloadBtn');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Downloaded! Now disconnect internet and open the file';
+            btn.style.background = '#0a0';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '';
+            }, 3000);
+        }
+
+        // Show download section if accessed online (not file://)
+        if (window.location.protocol !== 'file:') {
+            document.getElementById('downloadSection').style.display = 'block';
+        }
 
         // Security checks - run before anything else
         function checkSecurity() {
