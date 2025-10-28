@@ -193,35 +193,20 @@ esbuild.build({
     </div>
 
     <div id="securityBlock" style="display: none; background: #000; color: #f00; padding: 20px; border: 1px solid #f00; margin: 20px 0;">
-        <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px;">SECURITY BLOCK</div>
-        <div id="securityMessage" style="margin: 10px 0;"></div>
-        <div style="margin-top: 20px; font-size: 12px;">
-            Recommended setup:<br>
-            1. Save to USB stick<br>
-            2. Boot Tails OS<br>
-            3. Disconnect network<br>
-            4. Open file locally<br>
-        </div>
+        <div id="securityMessage" style="margin: 10px 0; font-size: 14px;"></div>
     </div>
 
     <div id="networkStatus" class="online">
         ONLINE - DISCONNECT NOW
     </div>
 
-    <div id="downloadSection" style="display: none; border: 1px solid #fff; padding: 15px; margin: 20px 0; text-align: center;">
-        <div style="margin-bottom: 10px; font-size: 12px;">
-            <strong>Step 1:</strong> Download the file
-        </div>
-        <button id="downloadBtn" onclick="downloadHTML()" style="padding: 15px 30px; font-size: 14px; cursor: pointer;">
-            ⬇ DOWNLOAD FOR OFFLINE USE
-        </button>
-        <div id="downloadInstructions" style="display: none; margin-top: 15px; font-size: 12px; color: #0f0; border: 1px solid #0f0; padding: 10px;">
-            <strong>✓ Downloaded!</strong><br><br>
-            <strong>Step 2:</strong> Close this tab<br>
-            <strong>Step 3:</strong> Go to Downloads folder<br>
-            <strong>Step 4:</strong> Open index.html<br>
-            <strong>Step 5:</strong> Disconnect internet<br><br>
-            <span style="color: #888;">The file will only work when opened locally (file://) and offline</span>
+    <div id="downloadSection" style="display: none; border: 1px solid #fff; padding: 20px; margin: 20px 0; text-align: center;">
+        <h2 style="font-size: 14px; margin-bottom: 10px;">Save this page to your local drive</h2>
+        <p style="font-size: 12px; margin-bottom: 15px;">
+            Please <a href="." download="index.html" style="color: #0f0; font-weight: bold;">save this HTML file</a> to your computer, then open it from there.
+        </p>
+        <div style="font-size: 11px; color: #888;">
+            After opening: disconnect internet to use
         </div>
     </div>
 
@@ -285,68 +270,38 @@ esbuild.build({
     <script>
 ${cryptoBundle}
 
-        // Download HTML function
-        function downloadHTML() {
-            const htmlContent = document.documentElement.outerHTML;
-            const blob = new Blob([htmlContent], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'index.html';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+        const isLocalFile = window.location.protocol === 'file:';
+        const isOnline = navigator.onLine;
 
-            // Hide button and show instructions
-            document.getElementById('downloadBtn').style.display = 'none';
-            document.getElementById('downloadInstructions').style.display = 'block';
-        }
-
-        // Show download section if accessed online (not file://)
-        if (window.location.protocol !== 'file:') {
+        // Show download prompt if not local file
+        if (!isLocalFile) {
             document.getElementById('downloadSection').style.display = 'block';
         }
-
-        // Security checks - run before anything else
-        function checkSecurity() {
+        // Show offline prompt if local but online
+        else if (isOnline) {
             const securityBlock = document.getElementById('securityBlock');
-            const mainContent = document.getElementById('mainContent');
             const securityMessage = document.getElementById('securityMessage');
-
-            // Check 1: Must be file:// protocol (local file)
-            if (window.location.protocol !== 'file:') {
-                securityMessage.textContent = 'ERROR: Must run as local file (file://)\\n' +
-                    'Current protocol: ' + window.location.protocol + '\\n' +
-                    'Download and open directly.';
-                securityBlock.style.display = 'block';
-                return false;
-            }
-
-            // Check 2: Must be offline
-            if (navigator.onLine) {
-                securityMessage.textContent = 'ERROR: Internet connection detected\\n' +
-                    'Disconnect network and refresh page.';
-                securityBlock.style.display = 'block';
-                return false;
-            }
-
-            // All checks passed
-            mainContent.style.display = 'block';
-            return true;
+            securityMessage.textContent = 'Disconnect internet and refresh page.';
+            securityBlock.style.display = 'block';
+        }
+        // All good: local file + offline
+        else {
+            document.getElementById('mainContent').style.display = 'block';
         }
 
-        // Run security check immediately
-        const securityPassed = checkSecurity();
-
-        // Re-check if network status changes
-        window.addEventListener('online', () => {
-            if (!checkSecurity()) {
+        // Monitor network changes
+        const checkOnlineStatus = () => {
+            if (isLocalFile && navigator.onLine) {
                 document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('securityBlock').style.display = 'block';
+            } else if (isLocalFile && !navigator.onLine) {
+                document.getElementById('securityBlock').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
             }
-        });
+        };
 
-        window.addEventListener('offline', checkSecurity);
+        window.addEventListener('online', checkOnlineStatus);
+        window.addEventListener('offline', checkOnlineStatus);
 
         function updateNetworkStatus() {
             const statusDiv = document.getElementById('networkStatus');
