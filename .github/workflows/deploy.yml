@@ -85,18 +85,28 @@ jobs:
             exit 0
           fi
 
-          # Upload to Pinata
-          response=$(curl -X POST \
+          # Upload to Pinata with proper error handling
+          echo "Uploading to Pinata..."
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
             "https://api.pinata.cloud/pinning/pinFileToIPFS" \
             -H "Authorization: Bearer $API_JWT" \
-            -F "file=@ledger-recovery.html" \
-            -F "pinataMetadata={\"name\":\"ledger-recovery-$(date +%Y%m%d-%H%M%S).html\"}" \
-            -F "pinataOptions={\"cidVersion\":1}")
+            -F "file=@ledger-recovery.html")
 
-          echo "Pinata Response: $response"
+          http_code=$(echo "$response" | tail -n 1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Error: Pinata API returned status $http_code"
+            echo "Response body: $body"
+            exit 1
+          fi
 
           # Extract IPFS hash
-          ipfs_hash=$(echo $response | grep -o '"IpfsHash":"[^"]*' | cut -d'"' -f4)
+          ipfs_hash=$(echo "$body" | grep -o '"IpfsHash":"[^"]*' | cut -d'"' -f4)
 
           if [ -n "$ipfs_hash" ]; then
             echo "✓ Deployed to IPFS!"
