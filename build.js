@@ -209,9 +209,11 @@ esbuild.build({
         <p style="font-size: 12px; margin-bottom: 10px;">
             <strong>Recommended:</strong> Use on an airgapped device (Tails OS, dedicated offline computer)
         </p>
-        <p style="font-size: 12px; margin-bottom: 15px; text-align: center;">
-            <a href="." download="index.html" style="color: #0f0; font-weight: bold;">⬇ Save this HTML file</a> to your offline device
-        </p>
+        <div style="text-align: center; margin: 15px 0;">
+            <button onclick="downloadPage()" style="padding: 12px 24px; font-size: 12px; background: #0a0; color: #000; font-weight: bold;">
+                ⬇ SAVE THIS HTML FILE
+            </button>
+        </div>
         <div style="font-size: 11px; color: #888; text-align: center;">
             After saving: open locally and disconnect internet
         </div>
@@ -281,6 +283,26 @@ esbuild.build({
 
     <script>
 ${cryptoBundle}
+
+        // Download current page function
+        function downloadPage() {
+            fetch(window.location.href)
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'index.html';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(err => {
+                    console.error('Download failed:', err);
+                    alert('Download failed. Please use your browser\\'s Save As feature (Ctrl+S or Cmd+S)');
+                });
+        }
 
         const isLocalFile = window.location.protocol === 'file:';
         const isOnline = navigator.onLine;
