@@ -85,28 +85,37 @@ jobs:
             exit 0
           fi
 
-          # Upload to Pinata with proper error handling
-          echo "Uploading to Pinata..."
+          # Test auth first
+          echo "Testing Pinata authentication..."
+          auth_test=$(curl -s -w "\n%{http_code}" \
+            "https://api.pinata.cloud/data/testAuthentication" \
+            -H "Authorization: Bearer $API_JWT")
 
-          response=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://api.pinata.cloud/pinning/pinFileToIPFS" \
-            -H "Authorization: Bearer $API_JWT" \
-            -F "file=@ledger-recovery.html")
+          auth_code=$(echo "$auth_test" | tail -n 1)
+          echo "Auth test status: $auth_code"
 
-          http_code=$(echo "$response" | tail -n 1)
-          body=$(echo "$response" | sed '$d')
-
-          echo "HTTP Status: $http_code"
-          echo "Response: $body"
-
-          if [ "$http_code" != "200" ]; then
-            echo "Error: Pinata API returned status $http_code"
-            echo "Response body: $body"
+          if [ "$auth_code" != "200" ]; then
+            echo "Error: Pinata authentication failed"
+            echo "Response: $(echo "$auth_test" | sed '$d')"
             exit 1
           fi
 
+          echo "✓ Authentication successful"
+
+          # Upload to Pinata
+          echo "Uploading file to Pinata..."
+
+          response=$(curl -v -X POST \
+            "https://api.pinata.cloud/pinning/pinFileToIPFS" \
+            -H "Authorization: Bearer $API_JWT" \
+            -F "file=@ledger-recovery.html" 2>&1)
+
+          echo "=== Curl Response ==="
+          echo "$response"
+          echo "====================="
+
           # Extract IPFS hash
-          ipfs_hash=$(echo "$body" | grep -o '"IpfsHash":"[^"]*' | cut -d'"' -f4)
+          ipfs_hash=$(echo "$response" | grep -o '"IpfsHash":"[^"]*' | cut -d'"' -f4)
 
           if [ -n "$ipfs_hash" ]; then
             echo "✓ Deployed to IPFS!"
