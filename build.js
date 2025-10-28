@@ -245,9 +245,14 @@ esbuild.build({
         </div>
     </div>
 
-    <div id="addressResult" class="results">
-        <strong>Address</strong>
-        <code id="derivedAddress"></code>
+    <div id="addressResult" class="results" style="background: #1a1a1a;">
+        <strong style="color: #0f0; font-size: 13px;">✓ Account derived - will be used for signing:</strong>
+        <div style="margin-top: 10px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 5px;">Address:</div>
+            <code id="derivedAddress" style="color: #0f0;"></code>
+            <div style="font-size: 11px; color: #888; margin: 10px 0 5px 0;">Public Key:</div>
+            <code id="derivedPubKey" style="color: #0f0;"></code>
+        </div>
     </div>
 
     <hr>
@@ -416,7 +421,10 @@ ${cryptoBundle}
 
                 currentAccount = result;
                 statusEl.textContent = '(✓ valid)';
+
+                // Show address and public key
                 document.getElementById('derivedAddress').textContent = result.address;
+                document.getElementById('derivedPubKey').textContent = result.publicKey;
                 document.getElementById('addressResult').classList.add('show');
 
             } catch (err) {
