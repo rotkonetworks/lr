@@ -220,6 +220,12 @@
         </div>
     </div>
 
+    <div style="margin: 20px 0;">
+        <button type="button" onclick="deriveAddress()" style="width: 100%; padding: 15px; font-size: 14px;">
+            DERIVE ACCOUNT
+        </button>
+    </div>
+
     <div id="addressResult" class="results" style="background: #1a1a1a;">
         <strong style="color: #0f0; font-size: 13px;">✓ Account derived - will be used for signing:</strong>
         <div style="margin-top: 10px;">
@@ -583,17 +589,9 @@ buffer/index.js:
             document.getElementById('qrReader').style.display = 'none';
         }
 
-        // Auto-validate on input (only if security checks passed)
-        if (securityPassed) {
-            updatePathInfo();
-            document.getElementById('mnemonic').addEventListener('input', deriveAddress);
-            document.getElementById('derivationMode').addEventListener('change', () => {
-                updatePathInfo();
-                deriveAddress();
-            });
-            document.getElementById('network').addEventListener('change', deriveAddress);
-            document.getElementById('accountIndex').addEventListener('input', deriveAddress);
-        }
+        // Initialize path info display
+        updatePathInfo();
+        document.getElementById('derivationMode').addEventListener('change', updatePathInfo);
     </script>
 
     <div style="text-align: center; color: #888; margin-top: 40px; font-size: 10px; border-top: 1px solid #333; padding-top: 20px;">
