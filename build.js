@@ -234,11 +234,11 @@ esbuild.build({
     <hr>
 
     <form onsubmit="signTransaction(event)">
-        <label>Extrinsic to sign <span class="info">(paste or scan QR code)</span></label>
+        <label>Extrinsic to sign <span class="info">(paste or scan with camera below)</span></label>
         <textarea id="unsignedTx" rows="4" placeholder="0x..."></textarea>
 
         <div class="button-group">
-            <button type="button" onclick="toggleQrScanner()">SCAN QR CODE</button>
+            <button type="button" onclick="toggleQrScanner()">📷 SCAN UNSIGNED EXTRINSIC</button>
             <button type="submit">SIGN</button>
         </div>
 
