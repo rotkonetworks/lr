@@ -6,6 +6,8 @@
     "build": "node build.js"
   },
   "devDependencies": {
+    "@polkadot/api": "^16.4.9",
+    "@polkadot/keyring": "^13.5.7",
     "buffer": "^6.0.3",
     "esbuild": "^0.20.0"
   },

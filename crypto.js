@@ -179,6 +179,33 @@ function hexToU8a(hex) {
 // Public API
 // ============================================================================
 
+// Compact encode a number
+function compactEncode(value) {
+  if (value < 64) {
+    return new Uint8Array([value << 2]);
+  } else if (value < 16384) {
+    return new Uint8Array([
+      ((value & 0x3f) << 2) | 0x01,
+      (value >> 6) & 0xff
+    ]);
+  } else if (value < 1073741824) {
+    return new Uint8Array([
+      ((value & 0x3f) << 2) | 0x02,
+      (value >> 6) & 0xff,
+      (value >> 14) & 0xff,
+      (value >> 22) & 0xff
+    ]);
+  } else {
+    const bytes = [];
+    let val = value;
+    while (val > 0) {
+      bytes.push(val & 0xff);
+      val >>= 8;
+    }
+    return new Uint8Array([0x03 + ((bytes.length - 4) << 2), ...bytes]);
+  }
+}
+
 async function deriveAndSign(mnemonic, accountIndex, ss58prefix, unsignedTxHex, useLegacy = true) {
   const HARDENED = 0x80000000;
 
@@ -195,11 +222,48 @@ async function deriveAndSign(mnemonic, accountIndex, ss58prefix, unsignedTxHex, 
   const message = hexToU8a(unsignedTxHex);
   const signature = bip32ed25519.sign(message, account.extendedSecretKey);
 
+  // Construct proper signed extrinsic
+  // Format: [length] [version] [accountId type] [publicKey] [signature type] [signature] [rest of unsigned]
+
+  // Parse unsigned extrinsic (remove length prefix if present)
+  let unsignedBytes = hexToU8a(unsignedTxHex);
+  let offset = 0;
+
+  // Check if first byte is a compact length
+  if (unsignedBytes[0] < 0xfc) {
+    // Skip compact length prefix
+    if ((unsignedBytes[0] & 0x03) === 0x00) {
+      offset = 1;
+    } else if ((unsignedBytes[0] & 0x03) === 0x01) {
+      offset = 2;
+    } else if ((unsignedBytes[0] & 0x03) === 0x02) {
+      offset = 4;
+    }
+  }
+
+  const extrinsicData = unsignedBytes.slice(offset);
+
+  // Build signed extrinsic
+  const signedData = new Uint8Array([
+    0x84, // version 4 + signed bit
+    0x00, // AccountId type (Id variant)
+    ...account.publicKey, // 32 bytes
+    0x01, // Ed25519 signature type
+    ...signature, // 64 bytes
+    ...extrinsicData // era, nonce, tip, method
+  ]);
+
+  // Add compact length prefix
+  const lengthPrefix = compactEncode(signedData.length);
+  const finalExtrinsic = new Uint8Array(lengthPrefix.length + signedData.length);
+  finalExtrinsic.set(lengthPrefix, 0);
+  finalExtrinsic.set(signedData, lengthPrefix.length);
+
   return {
     address: account.address,
     publicKey: u8aToHex(account.publicKey),
     signature: u8aToHex(signature),
-    signedTx: u8aToHex(signature) + unsignedTxHex.slice(2)
+    signedTx: u8aToHex(finalExtrinsic)
   };
 }
 
