@@ -204,13 +204,16 @@ esbuild.build({
         ONLINE - DISCONNECT NOW
     </div>
 
-    <div id="downloadSection" style="display: none; border: 1px solid #fff; padding: 20px; margin: 20px 0; text-align: center;">
-        <h2 style="font-size: 14px; margin-bottom: 10px;">Save this page to your local drive</h2>
-        <p style="font-size: 12px; margin-bottom: 15px;">
-            Please <a href="." download="index.html" style="color: #0f0; font-weight: bold;">save this HTML file</a> to your computer, then open it from there.
+    <div id="downloadSection" style="display: none; border: 1px solid #fff; padding: 20px; margin: 20px 0;">
+        <h2 style="font-size: 14px; margin-bottom: 10px; text-align: center;">⚠ Use on offline device only</h2>
+        <p style="font-size: 12px; margin-bottom: 10px;">
+            <strong>Recommended:</strong> Use on an airgapped device (Tails OS, dedicated offline computer)
         </p>
-        <div style="font-size: 11px; color: #888;">
-            After opening: disconnect internet to use
+        <p style="font-size: 12px; margin-bottom: 15px; text-align: center;">
+            <a href="." download="index.html" style="color: #0f0; font-weight: bold;">⬇ Save this HTML file</a> to your offline device
+        </p>
+        <div style="font-size: 11px; color: #888; text-align: center;">
+            After saving: open locally and disconnect internet
         </div>
     </div>
 
@@ -290,7 +293,7 @@ ${cryptoBundle}
         else if (isOnline) {
             const securityBlock = document.getElementById('securityBlock');
             const securityMessage = document.getElementById('securityMessage');
-            securityMessage.textContent = 'Disconnect internet and refresh page.';
+            securityMessage.innerHTML = '<strong>⚠ Internet connection detected</strong><br><br>Disconnect your internet connection (WiFi/Ethernet) and refresh this page.';
             securityBlock.style.display = 'block';
         }
         // All good: local file + offline
@@ -302,6 +305,8 @@ ${cryptoBundle}
         const checkOnlineStatus = () => {
             if (isLocalFile && navigator.onLine) {
                 document.getElementById('mainContent').style.display = 'none';
+                const securityMessage = document.getElementById('securityMessage');
+                securityMessage.innerHTML = '<strong>⚠ Internet connection detected</strong><br><br>Disconnect your internet connection (WiFi/Ethernet) and refresh this page.';
                 document.getElementById('securityBlock').style.display = 'block';
             } else if (isLocalFile && !navigator.onLine) {
                 document.getElementById('securityBlock').style.display = 'none';
