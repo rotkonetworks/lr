@@ -52,6 +52,21 @@ The tool will **NOT work** unless:
 npm install && npm run build
 ```
 
+## Deploy
+
+Auto-deploys to GitHub Pages + IPFS on push to master.
+
+**Setup:**
+```bash
+# Add Pinata JWT secret
+gh secret set API_JWT --body "eyJhbGc..."
+
+# Enable IPFS deployment
+gh variable set ENABLE_IPFS_DEPLOY --body "true"
+
+# Enable GitHub Pages: Settings → Pages → Source: GitHub Actions
+```
+
 ## License
 
 Apache-2.0

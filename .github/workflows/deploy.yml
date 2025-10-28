@@ -1,0 +1,142 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Upload artifact for IPFS
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipfs-build
+          path: ledger-recovery.html
+          retention-days: 1
+
+  deploy-github-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-ipfs:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ipfs-build
+
+      - name: Deploy to IPFS via Pinata
+        if: vars.ENABLE_IPFS_DEPLOY == 'true'
+        env:
+          API_JWT: ${{ secrets.API_JWT }}
+        run: |
+          if [ -z "$API_JWT" ]; then
+            echo "Warning: API_JWT secret not set. Skipping IPFS deployment."
+            echo "To enable IPFS deployment:"
+            echo "1. Get a JWT token from https://pinata.cloud"
+            echo "2. Add it as a secret named API_JWT in your repository settings"
+            echo "3. Set repository variable ENABLE_IPFS_DEPLOY to 'true'"
+            exit 0
+          fi
+
+          # Upload to Pinata
+          response=$(curl -X POST \
+            "https://api.pinata.cloud/pinning/pinFileToIPFS" \
+            -H "Authorization: Bearer $API_JWT" \
+            -F "file=@ledger-recovery.html" \
+            -F "pinataMetadata={\"name\":\"ledger-recovery-$(date +%Y%m%d-%H%M%S).html\"}" \
+            -F "pinataOptions={\"cidVersion\":1}")
+
+          echo "Pinata Response: $response"
+
+          # Extract IPFS hash
+          ipfs_hash=$(echo $response | grep -o '"IpfsHash":"[^"]*' | cut -d'"' -f4)
+
+          if [ -n "$ipfs_hash" ]; then
+            echo "✓ Deployed to IPFS!"
+            echo "IPFS Hash: $ipfs_hash"
+            echo "Access at:"
+            echo "  - https://gateway.pinata.cloud/ipfs/$ipfs_hash"
+            echo "  - https://ipfs.io/ipfs/$ipfs_hash"
+            echo "  - https://cloudflare-ipfs.com/ipfs/$ipfs_hash"
+
+            # Save hash to summary
+            echo "## IPFS Deployment" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**IPFS Hash:** \`$ipfs_hash\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Access URLs:**" >> $GITHUB_STEP_SUMMARY
+            echo "- [Pinata Gateway](https://gateway.pinata.cloud/ipfs/$ipfs_hash)" >> $GITHUB_STEP_SUMMARY
+            echo "- [IPFS.io Gateway](https://ipfs.io/ipfs/$ipfs_hash)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Cloudflare Gateway](https://cloudflare-ipfs.com/ipfs/$ipfs_hash)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Error: Failed to extract IPFS hash from response"
+            exit 1
+          fi
+
+      - name: IPFS Deployment Status
+        if: vars.ENABLE_IPFS_DEPLOY != 'true'
+        run: |
+          echo "IPFS deployment is disabled."
+          echo ""
+          echo "To enable IPFS deployment:"
+          echo "1. Sign up at https://pinata.cloud and get a JWT token"
+          echo "2. Add the JWT as a repository secret named API_JWT:"
+          echo "   Settings → Secrets and variables → Actions → New repository secret"
+          echo "3. Add a repository variable ENABLE_IPFS_DEPLOY set to 'true':"
+          echo "   Settings → Secrets and variables → Actions → Variables tab → New repository variable"
+          echo ""
+          echo "## IPFS Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "IPFS deployment is currently **disabled**." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To enable:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Get a JWT token from [Pinata](https://pinata.cloud)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Add it as secret \`API_JWT\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Set variable \`ENABLE_IPFS_DEPLOY\` to \`true\`" >> $GITHUB_STEP_SUMMARY
