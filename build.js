@@ -540,8 +540,8 @@ ${cryptoBundle}
 </html>`;
 
   // Write the final HTML file
-  fs.writeFileSync('ledger-recovery.html', html);
-  console.log('✓ Created ledger-recovery.html');
+  fs.writeFileSync('index.html', html);
+  console.log('✓ Created index.html');
   console.log('');
   console.log('File ready for offline use!');
   console.log('Save this file and disconnect from internet before entering mnemonic.');

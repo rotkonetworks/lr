@@ -15,14 +15,14 @@ The tool will **NOT work** unless:
 2. ✓ Internet is disconnected (offline mode)
 
 **Recommended Setup:**
-1. Download `ledger-recovery.html` to USB stick
+1. Download `index.html` to USB stick
 2. Boot **Tails OS** from USB
 3. Disconnect all network (WiFi + ethernet)
 4. Open the HTML file in Tails browser
 5. The tool will verify you're offline before showing the form
 
 **Minimum Setup:**
-1. Save `ledger-recovery.html` to your computer
+1. Save `index.html` to your computer
 2. Disconnect from internet completely
 3. Open the file directly (file://)
 4. Red security warning will block usage if online
