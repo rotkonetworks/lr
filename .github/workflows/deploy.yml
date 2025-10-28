@@ -85,22 +85,28 @@ jobs:
             exit 0
           fi
 
+          # Debug JWT format
+          echo "JWT length: ${#API_JWT}"
+          echo "JWT first 20 chars: ${API_JWT:0:20}..."
+
           # Test auth first
           echo "Testing Pinata authentication..."
-          auth_test=$(curl -s -w "\n%{http_code}" \
-            "https://api.pinata.cloud/data/testAuthentication" \
-            -H "Authorization: Bearer $API_JWT")
 
-          auth_code=$(echo "$auth_test" | tail -n 1)
-          echo "Auth test status: $auth_code"
+          curl -v "https://api.pinata.cloud/data/testAuthentication" \
+            -H "Authorization: Bearer $API_JWT" \
+            > /tmp/auth_response.txt 2>&1
 
-          if [ "$auth_code" != "200" ]; then
-            echo "Error: Pinata authentication failed"
-            echo "Response: $(echo "$auth_test" | sed '$d')"
+          auth_exit=$?
+          echo "Auth curl exit code: $auth_exit"
+          echo "Auth response:"
+          cat /tmp/auth_response.txt
+
+          if [ $auth_exit -ne 0 ]; then
+            echo "Error: Curl failed with exit code $auth_exit"
             exit 1
           fi
 
-          echo "✓ Authentication successful"
+          echo "✓ Authentication test completed"
 
           # Upload to Pinata
           echo "Uploading file to Pinata..."
