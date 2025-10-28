@@ -1,0 +1,214 @@
+// Ledger recovery crypto bundle
+// Based on https://github.com/Zondax/ledger-substrate-js
+
+import * as bip39 from 'bip39';
+import * as bip32ed25519 from 'bip32-ed25519';
+import * as blake from 'blakejs';
+import bs58 from 'bs58';
+import * as hash from 'hash.js';
+import * as ed25519 from '@noble/ed25519';
+import QRCode from 'qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
+
+// Set up @noble/ed25519 for browser
+ed25519.etc.sha512Sync = (...m) => {
+  let totalLength = 0;
+  for (const msg of m) totalLength += msg.length;
+  const concatenated = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const msg of m) {
+    concatenated.set(msg, offset);
+    offset += msg.length;
+  }
+  const digest = hash.sha512().update(Array.from(concatenated)).digest();
+  return new Uint8Array(digest);
+};
+
+// ============================================================================
+// Helper functions
+// ============================================================================
+
+function sha512(data) {
+  const digest = hash.sha512().update(data).digest();
+  return Buffer.from(digest);
+}
+
+function hmac256(key, data) {
+  const digest = hash.hmac(hash.sha256, key).update(data).digest();
+  return Buffer.from(digest);
+}
+
+function hmac512(key, data) {
+  const digest = hash.hmac(hash.sha512, key).update(data).digest();
+  return Buffer.from(digest);
+}
+
+function ss58hash(data) {
+  const hashContext = blake.blake2bInit(64, null);
+  blake.blake2bUpdate(hashContext, Buffer.from('SS58PRE'));
+  blake.blake2bUpdate(hashContext, data);
+  return blake.blake2bFinal(hashContext);
+}
+
+// ============================================================================
+// SS58 Address Encoding
+// ============================================================================
+
+function ss58Encode(prefix, pubkey) {
+  if (pubkey.byteLength !== 32) {
+    return null;
+  }
+
+  const data = Buffer.alloc(35);
+  data[0] = prefix;
+  pubkey.copy(data, 1);
+  const hash = ss58hash(data.subarray(0, 33));
+  data[33] = hash[0];
+  data[34] = hash[1];
+
+  return bs58.encode(data);
+}
+
+function ss58Decode(address) {
+  const decoded = bs58.decode(address);
+  const hash = ss58hash(decoded.subarray(0, 33));
+
+  if (decoded[33] !== hash[0] || decoded[34] !== hash[1]) {
+    throw new Error('Invalid SS58 checksum');
+  }
+
+  return {
+    prefix: decoded[0],
+    pubkey: decoded.subarray(1, 33)
+  };
+}
+
+// ============================================================================
+// SLIP-10 Ed25519 Key Derivation
+// ============================================================================
+
+const HDPATH_0_DEFAULT = 0x8000002c;
+
+function rootNodeSlip10(masterSeed) {
+  const data = Buffer.alloc(1 + 64);
+  data[0] = 0x01;
+  masterSeed.copy(data, 1);
+  const c = hmac256('ed25519 seed', data);
+  let I = hmac512('ed25519 seed', data.subarray(1));
+  let kL = I.subarray(0, 32);
+  let kR = I.subarray(32);
+
+  while ((kL[31] & 32) !== 0) {
+    I.copy(data, 1);
+    I = hmac512('ed25519 seed', data.subarray(1));
+    kL = I.subarray(0, 32);
+    kR = I.subarray(32);
+  }
+
+  kL[0] &= 248;
+  kL[31] &= 127;
+  kL[31] |= 64;
+
+  return Buffer.concat([kL, kR, c]);
+}
+
+// ============================================================================
+// Main Key Derivation Function
+// ============================================================================
+
+function hdKeyDerivation(
+  mnemonic,
+  password,
+  slip0044,
+  accountIndex,
+  changeIndex,
+  addressIndex,
+  ss58prefix
+) {
+  if (!bip39.validateMnemonic(mnemonic)) {
+    throw new Error('Invalid mnemonic');
+  }
+
+  const seed = bip39.mnemonicToSeedSync(mnemonic, password);
+  let node = rootNodeSlip10(seed);
+  node = bip32ed25519.derivePrivate(node, HDPATH_0_DEFAULT);
+  node = bip32ed25519.derivePrivate(node, slip0044);
+  node = bip32ed25519.derivePrivate(node, accountIndex);
+  node = bip32ed25519.derivePrivate(node, changeIndex);
+  node = bip32ed25519.derivePrivate(node, addressIndex);
+
+  // Keep the full extended key for signing
+  const extendedSecretKey = node;
+  const kL = node.subarray(0, 32);
+  const sk = sha512(kL).subarray(0, 32);
+  sk[0] &= 248;
+  sk[31] &= 127;
+  sk[31] |= 64;
+
+  const pk = bip32ed25519.toPublic(sk);
+  const address = ss58Encode(ss58prefix, pk);
+
+  return {
+    extendedSecretKey,  // Full 96-byte extended key for BIP32-Ed25519 signing
+    secretKey: sk,
+    publicKey: pk,
+    address: address,
+  };
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+function u8aToHex(bytes) {
+  return '0x' + Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function hexToU8a(hex) {
+  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+  }
+  return bytes;
+}
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+async function deriveAndSign(mnemonic, accountIndex, ss58prefix, unsignedTxHex, useLegacy = true) {
+  const HARDENED = 0x80000000;
+
+  // Use correct slip44 coin type based on network
+  // Polkadot (prefix 0) = 354, Kusama (prefix 2) = 434
+  const slip44 = ss58prefix === 0 ? 354 : ss58prefix === 2 ? 434 : 354;
+  const slip0044 = HARDENED + slip44;
+
+  const account = useLegacy
+    ? hdKeyDerivation(mnemonic, '', slip0044, HARDENED + accountIndex, HARDENED, HARDENED, ss58prefix)
+    : hdKeyDerivation(mnemonic, '', slip0044, HARDENED + accountIndex, 0, 0, ss58prefix);
+
+  // Sign the transaction using BIP32-Ed25519
+  const message = hexToU8a(unsignedTxHex);
+  const signature = bip32ed25519.sign(message, account.extendedSecretKey);
+
+  return {
+    address: account.address,
+    publicKey: u8aToHex(account.publicKey),
+    signature: u8aToHex(signature),
+    signedTx: u8aToHex(signature) + unsignedTxHex.slice(2)
+  };
+}
+
+// Export to global scope for HTML usage
+window.cryptoBundle = {
+  deriveAndSign,
+  u8aToHex,
+  hexToU8a,
+  validateMnemonic: (mnemonic) => bip39.validateMnemonic(mnemonic),
+  QRCode,
+  Html5Qrcode
+};

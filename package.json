@@ -1,0 +1,24 @@
+{
+  "name": "ledger-recovery-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "esbuild": "^0.20.0"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.0.0",
+    "@polkadot/util": "^8.4.1",
+    "@polkadot/util-crypto": "^8.4.1",
+    "bip32-ed25519": "https://github.com/Zondax/bip32-ed25519",
+    "bip39": "^3.1.0",
+    "blakejs": "^1.2.1",
+    "bs58": "^5.0.0",
+    "hash.js": "^1.1.7",
+    "html5-qrcode": "^2.3.8",
+    "qrcode": "^1.5.4"
+  }
+}
