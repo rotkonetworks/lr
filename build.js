@@ -465,16 +465,13 @@ ${cryptoBundle}
 
                 hideError();
 
-                let unsignedTx = input;
+                let txInput = input;
 
                 // Check if input is JSON payload
                 if (input.startsWith('{')) {
                     try {
-                        const payload = JSON.parse(input);
-                        // TODO: Implement payload parsing in crypto.js
-                        // For now, show error
-                        showError('JSON payload support coming soon! For now, use hex format (0x...)');
-                        return;
+                        txInput = JSON.parse(input);
+                        // JSON payload will be handled by crypto.js
                     } catch (e) {
                         showError('ERROR: Invalid JSON: ' + e.message);
                         return;
@@ -488,7 +485,7 @@ ${cryptoBundle}
                     mnemonic,
                     accountIndex,
                     network,
-                    unsignedTx,
+                    txInput,
                     useLegacy
                 );
 

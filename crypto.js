@@ -206,6 +206,58 @@ function compactEncode(value) {
   }
 }
 
+// Parse JSON payload and construct txBlob (Ledger-style)
+function constructTxBlob(payload) {
+  // Payload from papi-console contains:
+  // - callData
+  // - signedExtensions { identifier, value, additionalSigned }
+
+  let parts = [];
+
+  // Add callData first
+  parts.push(hexToU8a(payload.callData));
+
+  // Add all extension values, then all additionalSigned
+  // Order matters! Must match runtime order
+  const extensions = Object.values(payload.signedExtensions);
+
+  // First: all values
+  for (const ext of extensions) {
+    if (ext.value && ext.value !== '0x') {
+      parts.push(hexToU8a(ext.value));
+    }
+  }
+
+  // Then: all additionalSigned
+  for (const ext of extensions) {
+    if (ext.additionalSigned && ext.additionalSigned !== '0x') {
+      parts.push(hexToU8a(ext.additionalSigned));
+    }
+  }
+
+  // Concatenate all parts
+  const totalLength = parts.reduce((sum, p) => sum + p.length, 0);
+  const txBlob = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const part of parts) {
+    txBlob.set(part, offset);
+    offset += part.length;
+  }
+
+  return txBlob;
+}
+
+// Hash payload if > 256 bytes (Ledger rule)
+function prepareSigningPayload(txBlob) {
+  if (txBlob.length > 256) {
+    // Hash with blake2b_256
+    const hashContext = blake.blake2bInit(32, null);
+    blake.blake2bUpdate(hashContext, txBlob);
+    return new Uint8Array(blake.blake2bFinal(hashContext));
+  }
+  return txBlob;
+}
+
 async function deriveAndSign(mnemonic, accountIndex, ss58prefix, unsignedTxHex, useLegacy = true) {
   const HARDENED = 0x80000000;
 
@@ -218,30 +270,66 @@ async function deriveAndSign(mnemonic, accountIndex, ss58prefix, unsignedTxHex, 
     ? hdKeyDerivation(mnemonic, '', slip0044, HARDENED + accountIndex, HARDENED, HARDENED, ss58prefix)
     : hdKeyDerivation(mnemonic, '', slip0044, HARDENED + accountIndex, 0, 0, ss58prefix);
 
-  // Sign the transaction using BIP32-Ed25519
-  const message = hexToU8a(unsignedTxHex);
-  const signature = bip32ed25519.sign(message, account.extendedSecretKey);
-
-  // Construct proper signed extrinsic
-  // Format: [length] [version] [accountId type] [publicKey] [signature type] [signature] [rest of unsigned]
-
-  // Parse unsigned extrinsic (remove length prefix if present)
-  let unsignedBytes = hexToU8a(unsignedTxHex);
-  let offset = 0;
-
-  // Check if first byte is a compact length
-  if (unsignedBytes[0] < 0xfc) {
-    // Skip compact length prefix
-    if ((unsignedBytes[0] & 0x03) === 0x00) {
-      offset = 1;
-    } else if ((unsignedBytes[0] & 0x03) === 0x01) {
-      offset = 2;
-    } else if ((unsignedBytes[0] & 0x03) === 0x02) {
-      offset = 4;
-    }
+  // Check if input is JSON payload or hex
+  let signingPayload;
+  if (typeof unsignedTxHex === 'object') {
+    // JSON payload from papi-console
+    const txBlob = constructTxBlob(unsignedTxHex);
+    signingPayload = prepareSigningPayload(txBlob);
+  } else {
+    // Legacy hex format
+    signingPayload = hexToU8a(unsignedTxHex);
   }
 
-  const extrinsicData = unsignedBytes.slice(offset);
+  // Sign the transaction using BIP32-Ed25519
+  const signature = bip32ed25519.sign(signingPayload, account.extendedSecretKey);
+
+  // Construct proper signed extrinsic
+  let extrinsicData;
+
+  if (typeof unsignedTxHex === 'object') {
+    // JSON payload - construct extrinsic data from extensions + callData
+    const payload = unsignedTxHex;
+    const parts = [];
+
+    // Add extension values (era, nonce, tip)
+    const extensions = Object.values(payload.signedExtensions);
+    for (const ext of extensions) {
+      if (ext.value && ext.value !== '0x') {
+        parts.push(hexToU8a(ext.value));
+      }
+    }
+
+    // Add callData (method)
+    parts.push(hexToU8a(payload.callData));
+
+    // Concatenate
+    const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
+    extrinsicData = new Uint8Array(totalLen);
+    let off = 0;
+    for (const part of parts) {
+      extrinsicData.set(part, off);
+      off += part.length;
+    }
+  } else {
+    // Legacy hex format - parse unsigned extrinsic (remove length prefix if present)
+    let unsignedBytes = hexToU8a(unsignedTxHex);
+    let offset = 0;
+
+    // Check if first byte is a compact length
+    if (unsignedBytes[0] < 0xfc) {
+      // Skip compact length prefix
+      if ((unsignedBytes[0] & 0x03) === 0x00) {
+        offset = 1;
+      } else if ((unsignedBytes[0] & 0x03) === 0x01) {
+        offset = 2;
+      } else if ((unsignedBytes[0] & 0x03) === 0x02) {
+        offset = 4;
+      }
+    }
+
+    extrinsicData = unsignedBytes.slice(offset);
+  }
 
   // Build signed extrinsic
   const signedData = new Uint8Array([
