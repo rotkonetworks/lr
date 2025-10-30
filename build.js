@@ -264,8 +264,8 @@ esbuild.build({
     <hr>
 
     <form onsubmit="signTransaction(event)">
-        <label>Extrinsic to sign <span class="info">(paste or scan with camera below)</span></label>
-        <textarea id="unsignedTx" rows="4" placeholder="0x..."></textarea>
+        <label>Extrinsic to sign <span class="info">(paste hex OR JSON payload)</span></label>
+        <textarea id="unsignedTx" rows="6" placeholder="0x... OR paste JSON payload from online.html"></textarea>
 
         <div class="button-group">
             <button type="button" onclick="toggleQrScanner()">📷 SCAN UNSIGNED EXTRINSIC</button>
@@ -445,10 +445,10 @@ ${cryptoBundle}
             document.getElementById('signResults').classList.remove('show');
 
             try {
-                const unsignedTx = document.getElementById('unsignedTx').value.trim();
+                const input = document.getElementById('unsignedTx').value.trim();
 
-                if (!unsignedTx || !unsignedTx.startsWith('0x')) {
-                    showError('ERROR: Transaction must start with 0x');
+                if (!input) {
+                    showError('ERROR: Enter transaction data');
                     return;
                 }
 
@@ -464,6 +464,25 @@ ${cryptoBundle}
                 const useLegacy = document.getElementById('derivationMode').value === 'legacy';
 
                 hideError();
+
+                let unsignedTx = input;
+
+                // Check if input is JSON payload
+                if (input.startsWith('{')) {
+                    try {
+                        const payload = JSON.parse(input);
+                        // TODO: Implement payload parsing in crypto.js
+                        // For now, show error
+                        showError('JSON payload support coming soon! For now, use hex format (0x...)');
+                        return;
+                    } catch (e) {
+                        showError('ERROR: Invalid JSON: ' + e.message);
+                        return;
+                    }
+                } else if (!input.startsWith('0x')) {
+                    showError('ERROR: Transaction must be hex (0x...) or JSON payload');
+                    return;
+                }
 
                 const result = await cryptoBundle.deriveAndSign(
                     mnemonic,
